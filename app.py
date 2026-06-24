@@ -156,9 +156,9 @@ def render_equipment_dashboard(dash_df, current_sub):
 
         # ✅ 핵심 수정: 숫자 합산이 아닌 "비어있지 않고 번호없음도 아닌 행 수"로 카운트
         def count_items(series):
-            return series.astype(str).str.strip().apply(
-                lambda x: x != "" and x.lower() != "nan" and x != "번호없음"
-            ).sum()
+    return series.astype(str).str.strip().apply(
+        lambda x: x != "" and x.lower() != "nan"
+    ).sum()
 
         desk_total   = count_items(dash_df[desk_col])   if desk_col   in dash_df.columns else 0
         chair_total  = count_items(dash_df[chair_col])  if chair_col  in dash_df.columns else 0
@@ -174,17 +174,7 @@ def render_equipment_dashboard(dash_df, current_sub):
         mc3.metric("🪑 의자 (H-HM)",    f"{int(chair_total):,} 개")
         mc4.metric("🗄️ 서랍 (H-DR)",   f"{int(drawer_total):,} 개")
 
-        # ✅ 번호없음 현황도 함께 표시 (관리번호 미부여 항목 파악용)
-        no_num_desk   = (dash_df[desk_col].astype(str).str.strip()   == "번호없음").sum() if desk_col   in dash_df.columns else 0
-        no_num_chair  = (dash_df[chair_col].astype(str).str.strip()  == "번호없음").sum() if chair_col  in dash_df.columns else 0
-        no_num_drawer = (dash_df[drawer_col].astype(str).str.strip() == "번호없음").sum() if drawer_col in dash_df.columns else 0
-
-        if no_num_desk + no_num_chair + no_num_drawer > 0:
-            st.markdown(
-                f"<p style='color:#94A3B8; font-size:13px; margin-top:-10px;'>"
-                f"⚠️ 관리번호 미부여: 책상 {int(no_num_desk)}개 / 의자 {int(no_num_chair)}개 / 서랍 {int(no_num_drawer)}개</p>",
-                unsafe_allow_html=True
-            )
+    
 
         # 상세 목록 표
         st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 대여 비품 상세 목록</h4>", unsafe_allow_html=True)
