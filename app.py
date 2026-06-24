@@ -8,7 +8,7 @@ from streamlit_gsheets import GSheetsConnection
 st.set_page_config(page_title="Haegin Asset ERP", layout="wide", page_icon="🏢")
 
 # ==============================================================================
-# 🎨 UI/UX 커스텀 CSS (밝은 테마 + 하늘색 HAEGIN & 탭 강조)
+# 🎨 UI/UX 커스텀 CSS (이미지 스타일의 플랫 메뉴 + 밝고 세련된 대시보드)
 # ==============================================================================
 st.markdown("""
 <style>
@@ -21,32 +21,48 @@ st.markdown("""
         border-right: 1px solid #E2E8F0;
     }
     
-    /* 사이드바 라디오 버튼(대분류 탭) 디자인 */
+    /* 사이드바 라디오 버튼(대분류 탭) 디자인 - 첨부된 이미지 스타일 완벽 구현 */
     div[role="radiogroup"] > label {
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        padding: 12px 20px !important;
-        border-radius: 8px !important;
-        margin-bottom: 8px !important;
+        background-color: transparent !important;
+        border: none !important;
+        padding: 10px 16px !important;
+        border-radius: 6px !important;
+        margin-bottom: 2px !important;
         transition: all 0.2s ease;
     }
+    /* 마우스 올렸을 때 옅은 회색 */
     div[role="radiogroup"] > label:hover {
         background-color: #F1F5F9 !important;
     }
-    /* 선택된 대분류 탭 디자인 (하늘색 강조) */
+    /* 선택된 메뉴 디자인 (연한 하늘색 배경 + 왼쪽 파란색 바) */
     div[role="radiogroup"] > label[data-baseweb="radio"][aria-checked="true"] {
-        background-color: #00AEEF !important; /* 하늘색 */
-        border-color: #00AEEF !important;
+        background-color: #E0F2FE !important; 
+        border-left: 4px solid #00AEEF !important;
+        border-radius: 0px 6px 6px 0px !important;
     }
     div[role="radiogroup"] > label[data-baseweb="radio"][aria-checked="true"] * {
-        color: #FFFFFF !important; /* 선택 시 글자는 흰색 */
-        font-weight: bold !important;
+        color: #0369A1 !important; /* 짙은 파란색 텍스트 */
+        font-weight: 800 !important;
     }
     /* 기본 라디오 동그라미 숨김 */
     div[role="radiogroup"] > label > div:first-child { display: none !important; }
     
+    /* 메뉴 텍스트 크기 조정 */
+    div[role="radiogroup"] > label p {
+        font-size: 15px !important;
+    }
+    
     /* 메인 화면 여백 최소화 */
     .block-container { padding-top: 2rem !important; max-width: 95% !important; }
+    
+    /* 대시보드 Metric(카드) 디자인 추가 */
+    [data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
     
     /* 일반 버튼 색상 (하늘색) */
     .stButton > button {
@@ -132,7 +148,6 @@ def load_config():
                 
                 if not m: continue
                 if m not in cfg:
-                    # 빈값이거나 에러가 나면 무조건 비품으로 초기화 (KeyError 원천 차단)
                     cfg[m] = {"type": t if t in ["비품", "SW", "PC"] else "비품", "subs": []}
                 if s and s != "(소분류 없음)" and s not in cfg[m]["subs"]:
                     cfg[m]["subs"].append(s)
@@ -173,10 +188,10 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-nav_options = ["📊 통합 대시보드"]
+nav_options = ["📊 통합 대시보드", "💿 SW 라이선스 대시보드"]
 menu_mapping = {}
 
-# 실시간 데이터 건수 배지 계산
+# 실시간 데이터 건수 배지 계산 (대분류 이름과 개수를 깔끔하게 표시)
 for k, v in menus.items():
     count = 0
     if v["type"] == "비품" and not df_eq.empty and "대분류" in df_eq.columns:
@@ -199,7 +214,7 @@ selected_label = st.sidebar.radio("Navigation", nav_options, label_visibility="c
 st.sidebar.markdown("---")
 
 # 엑셀 동기화 메뉴
-if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 (수동입력/삭제)", "⚙️ 환경설정 (탭 관리)"]:
+if selected_label not in ["📊 통합 대시보드", "💿 SW 라이선스 대시보드", "🛠️ 데이터 관리 (수동입력/삭제)", "⚙️ 환경설정 (탭 관리)"]:
     selected_menu = menu_mapping[selected_label]
     target_type = menus[selected_menu].get("type", "비품")
     sub_list = menus[selected_menu]["subs"] if menus[selected_menu]["subs"] else ["(소분류 없음)"]
@@ -238,22 +253,106 @@ if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 
 
 # --- 6. 메인 화면 로직 ---
 
-# 🟢 통합 대시보드
+# 🟢 통합 대시보드 (분리 적용)
 if selected_label == "📊 통합 대시보드":
-    st.markdown("<h2 style='color:#333;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#333; margin-bottom: 30px;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
     
-    eq_count = len(df_eq) if not df_eq.empty else 0
+    # === PC 자산 현황 ===
+    st.markdown("<h4 style='color:#00AEEF;'>💻 PC 자산 현황</h4>", unsafe_allow_html=True)
     pc_count = len(df_pc) if not df_pc.empty else 0
-    sw_count = len(df_sw) if not df_sw.empty else 0
+    pc_val = pd.to_numeric(df_pc.get("금액", pd.Series()), errors='coerce').sum() if not df_pc.empty else 0
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("📦 전체 하드웨어/비품", f"{int(eq_count + pc_count):,.0f} 개")
-    c2.metric("💾 운용 소프트웨어", f"{sw_count:,.0f} 개")
-    c3.metric("🏢 관리 탭 수", f"{len(menus)} 개")
+    c1.metric("총 PC 관리 수량", f"{pc_count:,.0f} 대")
+    c2.metric("PC 취득가 총액", f"₩ {int(pc_val):,.0f}")
     
-    st.info("💡 왼쪽 메뉴에서 각 카테고리를 클릭하여 상세 리스트를 확인하고 표에서 직접 수정하세요.")
+    # PC 분류(데스크탑/노트북) 세부 계산
+    if not df_pc.empty and "분류" in df_pc.columns:
+        desktop_cnt = len(df_pc[df_pc["분류"].astype(str).str.contains("데스크탑", na=False)])
+        laptop_cnt = len(df_pc[df_pc["분류"].astype(str).str.contains("노트북|맥북|UMPC", na=False)])
+        c3.metric("주요 기기 비율", f"데스크탑 {desktop_cnt}대 / 노트북 {laptop_cnt}대")
+    else:
+        c3.metric("주요 기기 비율", "데이터 없음")
+        
+    st.markdown("<hr style='margin: 30px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
 
-# 🟢 수동 데이터 관리 (추가 및 특정 탭 초기화) - 복구 완료
+    # === 비품 자산 현황 ===
+    st.markdown("<h4 style='color:#00AEEF;'>📦 일반 비품 자산 현황</h4>", unsafe_allow_html=True)
+    eq_count = pd.to_numeric(df_eq.get("개수", pd.Series()), errors='coerce').sum() if not df_eq.empty else 0
+    
+    # 취득가 총액 계산 (개수 * 단가) - 에러 방지를 위해 숫자 변환 처리
+    if not df_eq.empty and "개수" in df_eq.columns and "취득가" in df_eq.columns:
+        eq_counts = pd.to_numeric(df_eq["개수"], errors='coerce').fillna(0)
+        eq_prices = pd.to_numeric(df_eq["취득가"], errors='coerce').fillna(0)
+        eq_val = (eq_counts * eq_prices).sum()
+    else:
+        eq_val = 0
+        
+    c4, c5, c6 = st.columns(3)
+    c4.metric("총 일반 비품 수량", f"{int(eq_count):,.0f} 개")
+    c5.metric("비품 취득가 총액", f"₩ {int(eq_val):,.0f}")
+    
+    eq_tab_cnt = len(df_eq["소분류"].unique()) if not df_eq.empty and "소분류" in df_eq.columns else 0
+    c6.metric("관리 중인 비품 탭 수", f"{eq_tab_cnt} 개")
+    
+    st.markdown("<hr style='margin: 30px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
+    st.info("💡 왼쪽 탭을 클릭하여 상세 데이터를 조회하고 실시간으로 표를 수정해 보세요.")
+
+# 🟢 SW 전용 대시보드 (독립 탭 분리)
+elif selected_label == "💿 SW 라이선스 대시보드":
+    st.markdown("<h2 style='color:#333;'>💿 소프트웨어 라이선스 통합 대시보드</h2>", unsafe_allow_html=True)
+    st.markdown("전사 소프트웨어 및 라이선스의 발급 현황과 만료일을 모니터링합니다.")
+    
+    if not df_sw.empty and "사용자" in df_sw.columns:
+        total_sw = len(df_sw)
+        used_sw = len(df_sw[df_sw["사용자"].astype(str).str.strip() != ""])
+        avail_sw = total_sw - used_sw
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("총 발급 라이선스", f"{total_sw} EA")
+        c2.metric("할당 완료 (사용중)", f"{used_sw} EA")
+        c3.metric("잔여 (미사용)", f"{avail_sw} EA")
+        st.markdown("<br>", unsafe_allow_html=True)
+    
+    if not df_sw.empty and "소분류" in df_sw.columns:
+        summary_data = []
+        for main_cat in df_sw["대분류"].unique():
+            if not main_cat: continue
+            main_df = df_sw[df_sw["대분류"] == main_cat]
+            for sub in main_df["소분류"].unique():
+                if not sub: continue
+                sub_df = main_df[main_df["소분류"] == sub]
+                total_count = len(sub_df)
+                
+                # 사용자가 빈칸이 아닌 경우 '사용중'으로 카운트
+                if "사용자" in sub_df.columns:
+                    in_use_count = len(sub_df[sub_df["사용자"].astype(str).str.strip() != ""])
+                else:
+                    in_use_count = 0
+                
+                # 사용기한이 기재된 데이터 중 가장 빨리 만료되는 날짜 찾기
+                if "사용기한" in sub_df.columns:
+                    valid_dates = sub_df[sub_df["사용기한"].astype(str).str.strip() != ""]["사용기한"]
+                    nearest_expiry = valid_dates.min() if not valid_dates.empty else "-"
+                else:
+                    nearest_expiry = "-"
+                
+                summary_data.append({
+                    "대분류": main_cat,
+                    "품목 (소분류)": sub,
+                    "총 라이선스 개수": f"{total_count} EA",
+                    "현재 사용중": f"{in_use_count} EA",
+                    "가장 빠른 만료일": nearest_expiry
+                })
+        
+        if summary_data:
+            st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
+        else:
+            st.info("표시할 라이선스 내역이 없습니다.")
+    else:
+        st.info("등록된 소프트웨어 데이터가 없습니다.")
+
+# 🟢 수동 데이터 관리 (추가 및 특정 탭 초기화)
 elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
     st.title("🛠️ 데이터 수동 등록 및 초기화")
     if not menus:
@@ -303,7 +402,7 @@ elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
                     st.success(f"[{del_sub}] 탭의 모든 데이터가 초기화되었습니다.")
                     safe_rerun()
 
-# 🟢 환경설정 (탭 관리) - 복구 완료
+# 🟢 환경설정 (탭 관리)
 elif selected_label == "⚙️ 환경설정 (탭 관리)":
     st.title("⚙️ 시스템 카테고리(탭) 관리")
     c1, c2 = st.columns(2)
@@ -353,37 +452,6 @@ else:
     sub_tabs = menus[selected_menu]["subs"]
     
     st.markdown(f"<h2 style='color:#333;'>📂 {selected_menu}</h2>", unsafe_allow_html=True)
-    
-    # 💡 [요청사항 완벽 반영] SW목록 전용 요약 대시보드
-    if cat_type == "SW" and normalize_str(selected_menu) == normalize_str("3. SW목록"):
-        st.markdown("### 💿 항목별 라이선스 현황 대시보드")
-        sw_data = df_sw[df_sw["대분류"] == selected_menu] if not df_sw.empty and "대분류" in df_sw.columns else pd.DataFrame()
-        
-        if not sw_data.empty:
-            summary_data = []
-            for sub in sw_data["소분류"].unique():
-                sub_df = sw_data[sw_data["소분류"] == sub]
-                total_count = len(sub_df)
-                
-                # 사용자가 빈칸이 아닌 경우 '사용중'으로 카운트
-                in_use_count = len(sub_df[sub_df["사용자"].astype(str).str.strip() != ""])
-                
-                # 사용기한이 기재된 데이터 중 가장 빨리 만료되는 날짜 찾기
-                valid_dates = sub_df[sub_df["사용기한"].astype(str).str.strip() != ""]["사용기한"]
-                nearest_expiry = valid_dates.min() if not valid_dates.empty else "-"
-                
-                summary_data.append({
-                    "품목 (소분류)": sub,
-                    "총 라이선스 개수": f"{total_count} EA",
-                    "현재 사용중": f"{in_use_count} EA",
-                    "가장 빠른 사용기한 (만료일)": nearest_expiry
-                })
-            
-            # 현황판 표로 깔끔하게 노출
-            st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
-        else:
-            st.info("등록된 라이선스 내역이 없습니다.")
-    
     st.markdown("---")
     
     # 하위 탭 및 에디터 렌더링
