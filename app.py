@@ -177,7 +177,7 @@ menus = st.session_state.menu_config
 eq_df, sw_df, pc_df = st.session_state.df_비품, st.session_state.df_SW, st.session_state.df_PC
 
 # --- 5. 사이드바 네비게이션 ---
-st.sidebar.title("🏢 Haegin Asset ERP")
+st.sidebar.title("🏢 해긴 자산관리")
 nav_list = ["📊 ERP 대시보드 (통합)"] + list(menus.keys()) + ["⚙️ 기초 정보 관리 (탭 설정)"]
 selected_menu = st.sidebar.radio("메뉴 네비게이션", nav_list)
 
