@@ -88,7 +88,6 @@ def get_expected_cols(sub_tab, dtype):
         return COLS["대여비품"]
     return COLS.get(dtype, COLS["비품"])
 
-# ✅ ttl=30 으로 단축 — 평소엔 30초 캐시로 속도 확보, 저장 시엔 cache_data.clear()로 즉시 무효화
 def load_data(dtype):
     if HAS_CONN:
         try:
@@ -97,7 +96,6 @@ def load_data(dtype):
         except: pass
     return pd.DataFrame(columns=COLS[dtype] if dtype != "비품" else COLS["비품"] + COLS["대여비품"])
 
-# ✅ 저장 후 캐시 이중 클리어 → 다음 조회 시 구글 시트에서 즉시 재조회
 def save_data(df, dtype):
     if HAS_CONN:
         sheet_name = f"data_{'equipment' if dtype=='비품' else ('software' if dtype=='SW' else 'pc')}"
@@ -138,7 +136,6 @@ def save_config(config):
         st.cache_data.clear()
         st.cache_resource.clear()
 
-# ✅ 비품 대시보드 렌더링 함수 (하이퍼라이즈 대여비품 전용 분기 포함)
 def render_equipment_dashboard(dash_df, current_sub):
 
     # ─── 하이퍼라이즈 대여 비품 전용 대시보드 ───
@@ -154,29 +151,23 @@ def render_equipment_dashboard(dash_df, current_sub):
         chair_col  = "의자 H-HM"
         drawer_col = "서랍 H-DR"
 
-        # ✅ 핵심 수정: 숫자 합산이 아닌 "비어있지 않고 번호없음도 아닌 행 수"로 카운트
+        # 빈 값·nan만 제외하고 "번호없음" 포함 전체 카운트
         def count_items(series):
-    return series.astype(str).str.strip().apply(
-        lambda x: x != "" and x.lower() != "nan"
-    ).sum()
+            return series.astype(str).str.strip().apply(
+                lambda x: x != "" and x.lower() != "nan"
+            ).sum()
 
         desk_total   = count_items(dash_df[desk_col])   if desk_col   in dash_df.columns else 0
         chair_total  = count_items(dash_df[chair_col])  if chair_col  in dash_df.columns else 0
         drawer_total = count_items(dash_df[drawer_col]) if drawer_col in dash_df.columns else 0
+        total_rows   = len(dash_df)
 
-        # 전체 행 수 (구분 번호 기준)
-        total_rows = len(dash_df)
-
-        # 요약 Metric 카드
         mc1, mc2, mc3, mc4 = st.columns(4)
-        mc1.metric("📋 총 대여 세트 수",  f"{total_rows:,} 세트")
-        mc2.metric("🛋️ 책상 (H-DE)",    f"{int(desk_total):,} 개")
-        mc3.metric("🪑 의자 (H-HM)",    f"{int(chair_total):,} 개")
-        mc4.metric("🗄️ 서랍 (H-DR)",   f"{int(drawer_total):,} 개")
+        mc1.metric("📋 총 대여 세트 수", f"{total_rows:,} 세트")
+        mc2.metric("🛋️ 책상 (H-DE)",   f"{int(desk_total):,} 개")
+        mc3.metric("🪑 의자 (H-HM)",   f"{int(chair_total):,} 개")
+        mc4.metric("🗄️ 서랍 (H-DR)",  f"{int(drawer_total):,} 개")
 
-    
-
-        # 상세 목록 표
         st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 대여 비품 상세 목록</h4>", unsafe_allow_html=True)
         display_cols = ["구분"] + [c for c in [desk_col, chair_col, drawer_col] if c in dash_df.columns]
         detail_df = dash_df[display_cols].copy().reset_index(drop=True)
@@ -185,7 +176,7 @@ def render_equipment_dashboard(dash_df, current_sub):
         st.markdown("<hr style='margin: 20px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
         return
 
-    # ─── 일반 비품 대시보드 (기존 코드 그대로) ───
+    # ─── 일반 비품 대시보드 ───
     if dash_df.empty:
         st.info("📭 아직 등록된 데이터가 없습니다. 아래 표에서 직접 입력하거나 엑셀을 업로드해 보세요.")
         st.markdown("---")
@@ -193,9 +184,9 @@ def render_equipment_dashboard(dash_df, current_sub):
 
     st.markdown("<h4 style='color:#00AEEF; margin-top:10px;'>📊 비품 현황 요약</h4>", unsafe_allow_html=True)
 
-    total_kinds = dash_df["품목"].nunique() if "품목" in dash_df.columns else 0
-    total_count = pd.to_numeric(dash_df.get("개수", pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
-    total_val   = (
+    total_kinds  = dash_df["품목"].nunique() if "품목" in dash_df.columns else 0
+    total_count  = pd.to_numeric(dash_df.get("개수", pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
+    total_val    = (
         pd.to_numeric(dash_df.get("개수",   pd.Series(dtype=float)), errors='coerce').fillna(0) *
         pd.to_numeric(dash_df.get("취득가", pd.Series(dtype=float)), errors='coerce').fillna(0)
     ).sum() if "개수" in dash_df.columns and "취득가" in dash_df.columns else 0
@@ -244,15 +235,16 @@ def render_equipment_dashboard(dash_df, current_sub):
     st.markdown("<hr style='margin: 20px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
 
 
+# ─── 세션 초기화 ───
 if HAS_CONN:
-    menus   = load_config()
-    df_eq   = load_data("비품")
-    df_sw   = load_data("SW")
-    df_pc   = load_data("PC")
+    menus = load_config()
+    df_eq = load_data("비품")
+    df_sw = load_data("SW")
+    df_pc = load_data("PC")
 else:
     st.stop()
 
-# --- 사이드바 ---
+# ─── 사이드바 ───
 st.sidebar.markdown("""
 <div style='text-align: center; margin-bottom: 20px;'>
     <h1 style='color: #00AEEF; margin: 0; font-size: 36px; font-weight: 900;'>HAEGIN</h1>
@@ -313,14 +305,14 @@ if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 
                 ]
             df_final = pd.concat([df_existing, df_up], ignore_index=True).fillna("")
             save_data(df_final, target_type)
-            st.cache_data.clear()      # ✅ 이중 클리어
-            st.cache_resource.clear()  # ✅
+            st.cache_data.clear()
+            st.cache_resource.clear()
             st.sidebar.success("✅ 동기화 완료! 최신 데이터를 불러옵니다.")
             safe_rerun()
         except Exception as e:
             st.sidebar.error(f"오류: {e}")
 
-# --- 메인 화면 ---
+# ─── 메인 화면 ───
 
 if selected_label == "📊 통합 대시보드":
     st.markdown("<h2 style='color:#333; margin-bottom: 30px;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
@@ -440,6 +432,7 @@ elif selected_label == "⚙️ 환경설정 (탭 관리)":
                         save_config(menus)
                         safe_rerun()
 
+# ─── 개별 탭 조회 및 에디터 ───
 else:
     selected_menu = menu_mapping[selected_label]
     cat_type      = menus[selected_menu].get("type", "비품")
@@ -471,7 +464,12 @@ else:
                     nearest_expiry = valid_dates.min() if not valid_dates.empty else "-"
                 else:
                     nearest_expiry = "-"
-                summary_data.append({"품목 (소분류)": sub, "총 라이선스 개수": f"{total_count} EA", "현재 사용중": f"{in_use_count} EA", "가장 빠른 만료일": nearest_expiry})
+                summary_data.append({
+                    "품목 (소분류)": sub,
+                    "총 라이선스 개수": f"{total_count} EA",
+                    "현재 사용중": f"{in_use_count} EA",
+                    "가장 빠른 만료일": nearest_expiry
+                })
             if summary_data:
                 st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
             else:
@@ -491,7 +489,7 @@ else:
         for i, current_sub in enumerate(sub_tabs):
             with tabs[i]:
 
-                # ✅ 비품 타입 → 대시보드 렌더링
+                # 비품 타입 → 대시보드 렌더링
                 if cat_type == "비품":
                     if not df_master.empty and "대분류" in df_master.columns and "소분류" in df_master.columns:
                         dash_df = df_master[
@@ -502,7 +500,7 @@ else:
                         dash_df = pd.DataFrame()
                     render_equipment_dashboard(dash_df, current_sub)
 
-                # 기존 에디터 (유지)
+                # 기존 에디터
                 st.caption("✨ 아래 표를 더블 클릭하여 내용을 즉시 수정하거나, 맨 아래 빈 칸을 눌러 행을 추가하세요.")
                 expected_cols = get_expected_cols(current_sub, cat_type)
                 display_cols  = [c for c in expected_cols if c not in ["대분류", "소분류"]]
