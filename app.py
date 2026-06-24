@@ -154,28 +154,48 @@ def render_equipment_dashboard(dash_df, current_sub):
         chair_col  = "의자 H-HM"
         drawer_col = "서랍 H-DR"
 
-        desk_total   = pd.to_numeric(dash_df.get(desk_col,   pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
-        chair_total  = pd.to_numeric(dash_df.get(chair_col,  pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
-        drawer_total = pd.to_numeric(dash_df.get(drawer_col, pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
+        # ✅ 핵심 수정: 숫자 합산이 아닌 "비어있지 않고 번호없음도 아닌 행 수"로 카운트
+        def count_items(series):
+            return series.astype(str).str.strip().apply(
+                lambda x: x != "" and x.lower() != "nan" and x != "번호없음"
+            ).sum()
 
-        mc1, mc2, mc3 = st.columns(3)
-        mc1.metric("🛋️ 책상 (H-DE)",  f"{int(desk_total):,} 개")
-        mc2.metric("🪑 의자 (H-HM)",  f"{int(chair_total):,} 개")
-        mc3.metric("🗄️ 서랍 (H-DR)", f"{int(drawer_total):,} 개")
+        desk_total   = count_items(dash_df[desk_col])   if desk_col   in dash_df.columns else 0
+        chair_total  = count_items(dash_df[chair_col])  if chair_col  in dash_df.columns else 0
+        drawer_total = count_items(dash_df[drawer_col]) if drawer_col in dash_df.columns else 0
 
-        if "구분" in dash_df.columns:
-            st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 구분별 상세</h4>", unsafe_allow_html=True)
-            detail_cols = [c for c in [desk_col, chair_col, drawer_col] if c in dash_df.columns]
-            if detail_cols:
-                summary = dash_df[["구분"] + detail_cols].copy()
-                for c in detail_cols:
-                    summary[c] = pd.to_numeric(summary[c], errors='coerce').fillna(0).astype(int)
-                st.dataframe(summary, use_container_width=True, hide_index=True)
+        # 전체 행 수 (구분 번호 기준)
+        total_rows = len(dash_df)
+
+        # 요약 Metric 카드
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        mc1.metric("📋 총 대여 세트 수",  f"{total_rows:,} 세트")
+        mc2.metric("🛋️ 책상 (H-DE)",    f"{int(desk_total):,} 개")
+        mc3.metric("🪑 의자 (H-HM)",    f"{int(chair_total):,} 개")
+        mc4.metric("🗄️ 서랍 (H-DR)",   f"{int(drawer_total):,} 개")
+
+        # ✅ 번호없음 현황도 함께 표시 (관리번호 미부여 항목 파악용)
+        no_num_desk   = (dash_df[desk_col].astype(str).str.strip()   == "번호없음").sum() if desk_col   in dash_df.columns else 0
+        no_num_chair  = (dash_df[chair_col].astype(str).str.strip()  == "번호없음").sum() if chair_col  in dash_df.columns else 0
+        no_num_drawer = (dash_df[drawer_col].astype(str).str.strip() == "번호없음").sum() if drawer_col in dash_df.columns else 0
+
+        if no_num_desk + no_num_chair + no_num_drawer > 0:
+            st.markdown(
+                f"<p style='color:#94A3B8; font-size:13px; margin-top:-10px;'>"
+                f"⚠️ 관리번호 미부여: 책상 {int(no_num_desk)}개 / 의자 {int(no_num_chair)}개 / 서랍 {int(no_num_drawer)}개</p>",
+                unsafe_allow_html=True
+            )
+
+        # 상세 목록 표
+        st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 대여 비품 상세 목록</h4>", unsafe_allow_html=True)
+        display_cols = ["구분"] + [c for c in [desk_col, chair_col, drawer_col] if c in dash_df.columns]
+        detail_df = dash_df[display_cols].copy().reset_index(drop=True)
+        st.dataframe(detail_df, use_container_width=True, hide_index=True)
 
         st.markdown("<hr style='margin: 20px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
-        return  # 일반 비품 로직 실행 안 함
+        return
 
-    # ─── 일반 비품 대시보드 ───
+    # ─── 일반 비품 대시보드 (기존 코드 그대로) ───
     if dash_df.empty:
         st.info("📭 아직 등록된 데이터가 없습니다. 아래 표에서 직접 입력하거나 엑셀을 업로드해 보세요.")
         st.markdown("---")
@@ -206,7 +226,6 @@ def render_equipment_dashboard(dash_df, current_sub):
 
     dash_df = dash_df.copy()
     dash_df["개수_num"] = pd.to_numeric(dash_df["개수"], errors='coerce').fillna(0)
-
     item_summary = dash_df.groupby("품목", as_index=False).agg(총개수=("개수_num", "sum"))
 
     if "위치" in dash_df.columns:
