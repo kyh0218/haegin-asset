@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-import json
 import re
 from streamlit_gsheets import GSheetsConnection
 
@@ -22,11 +21,9 @@ st.markdown("""
         margin-bottom: 2px !important;
         transition: all 0.2s ease;
     }
-    div[role="radiogroup"] > label:hover {
-        background-color: #F1F5F9 !important;
-    }
+    div[role="radiogroup"] > label:hover { background-color: #F1F5F9 !important; }
     div[role="radiogroup"] > label[data-baseweb="radio"][aria-checked="true"] {
-        background-color: #E0F2FE !important; 
+        background-color: #E0F2FE !important;
         border-left: 4px solid #00AEEF !important;
         border-radius: 0px 6px 6px 0px !important;
     }
@@ -91,24 +88,27 @@ def get_expected_cols(sub_tab, dtype):
         return COLS["대여비품"]
     return COLS.get(dtype, COLS["비품"])
 
+# ✅ ttl=30 으로 단축 — 평소엔 30초 캐시로 속도 확보, 저장 시엔 cache_data.clear()로 즉시 무효화
 def load_data(dtype):
     if HAS_CONN:
         try:
             sheet_name = f"data_{'equipment' if dtype=='비품' else ('software' if dtype=='SW' else 'pc')}"
-            return conn.read(worksheet=sheet_name, ttl=600).fillna("")
+            return conn.read(worksheet=sheet_name, ttl=30).fillna("")
         except: pass
     return pd.DataFrame(columns=COLS[dtype] if dtype != "비품" else COLS["비품"] + COLS["대여비품"])
 
+# ✅ 저장 후 캐시 이중 클리어 → 다음 조회 시 구글 시트에서 즉시 재조회
 def save_data(df, dtype):
     if HAS_CONN:
         sheet_name = f"data_{'equipment' if dtype=='비품' else ('software' if dtype=='SW' else 'pc')}"
         conn.update(worksheet=sheet_name, data=df.fillna("").astype(str))
         st.cache_data.clear()
+        st.cache_resource.clear()
 
 def load_config():
     if HAS_CONN:
         try:
-            df = conn.read(worksheet="menu_config", ttl=600).fillna("")
+            df = conn.read(worksheet="menu_config", ttl=30).fillna("")
             if df.empty or "대분류" not in df.columns: return DEFAULT_CONFIG
             cfg = {}
             for _, row in df.iterrows():
@@ -136,15 +136,46 @@ def save_config(config):
                 for sub in info["subs"]: rows.append({"대분류": main, "양식타입": info["type"], "소분류": sub})
         conn.update(worksheet="menu_config", data=pd.DataFrame(rows))
         st.cache_data.clear()
+        st.cache_resource.clear()
 
-# ✅ [신규] 비품 탭 품목별 대시보드 렌더링 함수
+# ✅ 비품 대시보드 렌더링 함수 (하이퍼라이즈 대여비품 전용 분기 포함)
 def render_equipment_dashboard(dash_df, current_sub):
-    """비품 탭 상단에 품목별 요약 대시보드를 렌더링합니다."""
 
-    # 대여비품 탭은 구조가 달라 대시보드 스킵
+    # ─── 하이퍼라이즈 대여 비품 전용 대시보드 ───
     if normalize_str(current_sub) == normalize_str("하이퍼라이즈 대여 비품"):
-        return
+        st.markdown("<h4 style='color:#00AEEF; margin-top:10px;'>🏢 하이퍼라이즈 대여 비품 현황</h4>", unsafe_allow_html=True)
 
+        if dash_df.empty:
+            st.info("📭 아직 등록된 데이터가 없습니다. 아래 표에서 직접 입력하거나 엑셀을 업로드해 보세요.")
+            st.markdown("---")
+            return
+
+        desk_col   = "책상 H-DE"
+        chair_col  = "의자 H-HM"
+        drawer_col = "서랍 H-DR"
+
+        desk_total   = pd.to_numeric(dash_df.get(desk_col,   pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
+        chair_total  = pd.to_numeric(dash_df.get(chair_col,  pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
+        drawer_total = pd.to_numeric(dash_df.get(drawer_col, pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
+
+        mc1, mc2, mc3 = st.columns(3)
+        mc1.metric("🛋️ 책상 (H-DE)",  f"{int(desk_total):,} 개")
+        mc2.metric("🪑 의자 (H-HM)",  f"{int(chair_total):,} 개")
+        mc3.metric("🗄️ 서랍 (H-DR)", f"{int(drawer_total):,} 개")
+
+        if "구분" in dash_df.columns:
+            st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 구분별 상세</h4>", unsafe_allow_html=True)
+            detail_cols = [c for c in [desk_col, chair_col, drawer_col] if c in dash_df.columns]
+            if detail_cols:
+                summary = dash_df[["구분"] + detail_cols].copy()
+                for c in detail_cols:
+                    summary[c] = pd.to_numeric(summary[c], errors='coerce').fillna(0).astype(int)
+                st.dataframe(summary, use_container_width=True, hide_index=True)
+
+        st.markdown("<hr style='margin: 20px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
+        return  # 일반 비품 로직 실행 안 함
+
+    # ─── 일반 비품 대시보드 ───
     if dash_df.empty:
         st.info("📭 아직 등록된 데이터가 없습니다. 아래 표에서 직접 입력하거나 엑셀을 업로드해 보세요.")
         st.markdown("---")
@@ -152,18 +183,12 @@ def render_equipment_dashboard(dash_df, current_sub):
 
     st.markdown("<h4 style='color:#00AEEF; margin-top:10px;'>📊 비품 현황 요약</h4>", unsafe_allow_html=True)
 
-    # --- 요약 Metric 카드 4개 ---
     total_kinds = dash_df["품목"].nunique() if "품목" in dash_df.columns else 0
     total_count = pd.to_numeric(dash_df.get("개수", pd.Series(dtype=float)), errors='coerce').fillna(0).sum()
-
-    if "개수" in dash_df.columns and "취득가" in dash_df.columns:
-        total_val = (
-            pd.to_numeric(dash_df["개수"],   errors='coerce').fillna(0) *
-            pd.to_numeric(dash_df["취득가"], errors='coerce').fillna(0)
-        ).sum()
-    else:
-        total_val = 0
-
+    total_val   = (
+        pd.to_numeric(dash_df.get("개수",   pd.Series(dtype=float)), errors='coerce').fillna(0) *
+        pd.to_numeric(dash_df.get("취득가", pd.Series(dtype=float)), errors='coerce').fillna(0)
+    ).sum() if "개수" in dash_df.columns and "취득가" in dash_df.columns else 0
     location_cnt = dash_df["위치"].nunique() if "위치" in dash_df.columns else 0
 
     mc1, mc2, mc3, mc4 = st.columns(4)
@@ -172,7 +197,6 @@ def render_equipment_dashboard(dash_df, current_sub):
     mc3.metric("취득가 총액",    f"₩ {int(total_val):,.0f}")
     mc4.metric("관리 위치 수",   f"{location_cnt} 곳")
 
-    # --- 품목별 집계 표 ---
     st.markdown("<h4 style='color:#00AEEF; margin-top:20px;'>📋 품목별 상세 현황</h4>", unsafe_allow_html=True)
 
     if "품목" not in dash_df.columns or "개수" not in dash_df.columns:
@@ -183,62 +207,43 @@ def render_equipment_dashboard(dash_df, current_sub):
     dash_df = dash_df.copy()
     dash_df["개수_num"] = pd.to_numeric(dash_df["개수"], errors='coerce').fillna(0)
 
-    # 품목별 총 개수
-    item_summary = (
-        dash_df.groupby("품목", as_index=False)
-               .agg(총개수=("개수_num", "sum"))
-    )
+    item_summary = dash_df.groupby("품목", as_index=False).agg(총개수=("개수_num", "sum"))
 
-    # 위치별 분포 컬럼 추가
     if "위치" in dash_df.columns:
         def loc_summary(grp):
-            loc_grp = (
-                grp.groupby("위치")["개수_num"]
-                   .sum()
-                   .reset_index()
-            )
+            loc_grp = grp.groupby("위치")["개수_num"].sum().reset_index()
             loc_grp = loc_grp[loc_grp["위치"].astype(str).str.strip() != ""]
-            if loc_grp.empty:
-                return "-"
-            return ", ".join(
-                f"{r['위치']}({int(r['개수_num'])}개)"
-                for _, r in loc_grp.iterrows()
-            )
-
-        loc_map = (
-            dash_df.groupby("품목")
-                   .apply(loc_summary)
-                   .reset_index()
-                   .rename(columns={0: "위치별 분포"})
-        )
+            if loc_grp.empty: return "-"
+            return ", ".join(f"{r['위치']}({int(r['개수_num'])}개)" for _, r in loc_grp.iterrows())
+        loc_map = dash_df.groupby("품목").apply(loc_summary).reset_index().rename(columns={0: "위치별 분포"})
         item_summary = item_summary.merge(loc_map, on="품목", how="left")
 
-    # 최종확인 년도 (가장 최근값)
     if "최종확인 년도" in dash_df.columns:
         year_map = (
             dash_df[dash_df["최종확인 년도"].astype(str).str.strip() != ""]
-            .groupby("품목")["최종확인 년도"]
-            .max()
-            .reset_index()
+            .groupby("품목")["최종확인 년도"].max().reset_index()
         )
         item_summary = item_summary.merge(year_map, on="품목", how="left")
 
     item_summary["총개수"] = item_summary["총개수"].astype(int)
-    item_summary = item_summary.rename(columns={"품목": "품목명", "총개수": "총 수량 (개)"})
-    item_summary = item_summary.sort_values("총 수량 (개)", ascending=False).reset_index(drop=True)
-
+    item_summary = (
+        item_summary.rename(columns={"품목": "품목명", "총개수": "총 수량 (개)"})
+                    .sort_values("총 수량 (개)", ascending=False)
+                    .reset_index(drop=True)
+    )
     st.dataframe(item_summary, use_container_width=True, hide_index=True)
     st.markdown("<hr style='margin: 20px 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
 
 
 if HAS_CONN:
-    menus = load_config()
-    df_eq = load_data("비품")
-    df_sw = load_data("SW")
-    df_pc = load_data("PC")
-else: st.stop()
+    menus   = load_config()
+    df_eq   = load_data("비품")
+    df_sw   = load_data("SW")
+    df_pc   = load_data("PC")
+else:
+    st.stop()
 
-# --- 사이드바 UI ---
+# --- 사이드바 ---
 st.sidebar.markdown("""
 <div style='text-align: center; margin-bottom: 20px;'>
     <h1 style='color: #00AEEF; margin: 0; font-size: 36px; font-weight: 900;'>HAEGIN</h1>
@@ -246,7 +251,7 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-nav_options = ["📊 통합 대시보드"]
+nav_options  = ["📊 통합 대시보드"]
 menu_mapping = {}
 
 for k, v in menus.items():
@@ -269,19 +274,19 @@ st.sidebar.markdown("---")
 
 if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 (수동입력/삭제)", "⚙️ 환경설정 (탭 관리)"]:
     selected_menu = menu_mapping[selected_label]
-    target_type = menus[selected_menu].get("type", "비품")
-    sub_list = menus[selected_menu]["subs"] if menus[selected_menu]["subs"] else ["(소분류 없음)"]
-    
+    target_type   = menus[selected_menu].get("type", "비품")
+    sub_list      = menus[selected_menu]["subs"] if menus[selected_menu]["subs"] else ["(소분류 없음)"]
+
     st.sidebar.markdown("<h4 style='color:#00AEEF;'>📁 데이터 일괄 동기화</h4>", unsafe_allow_html=True)
     target_sub = st.sidebar.selectbox("🎯 대상 탭 선택", sub_list)
-    
+
     if st.sidebar.button("📝 빈 양식 엑셀 다운로드"):
         expected_cols = get_expected_cols(target_sub, target_type)
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             pd.DataFrame(columns=[c for c in expected_cols if c not in ["대분류", "소분류"]]).to_excel(writer, index=False, sheet_name='입력양식')
         st.sidebar.download_button("📥 내 PC에 저장하기", data=buffer.getvalue(), file_name=f"{target_sub}_양식.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
+
     uploaded_file = st.sidebar.file_uploader(f"🔄 [{target_sub}] 업로드", type=["xlsx", "csv"])
     if uploaded_file and st.sidebar.button("📥 구글 시트에 적용", use_container_width=True):
         try:
@@ -293,26 +298,30 @@ if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 
             df_up = df_up[expected_cols].fillna("")
             df_existing = load_data(target_type)
             if not df_existing.empty and "대분류" in df_existing.columns:
-                df_existing = df_existing[~((df_existing['대분류'].apply(normalize_str) == normalize_str(selected_menu)) & 
-                                            (df_existing['소분류'].apply(normalize_str) == normalize_str(target_sub)))]
+                df_existing = df_existing[
+                    ~((df_existing['대분류'].apply(normalize_str) == normalize_str(selected_menu)) &
+                      (df_existing['소분류'].apply(normalize_str) == normalize_str(target_sub)))
+                ]
             df_final = pd.concat([df_existing, df_up], ignore_index=True).fillna("")
             save_data(df_final, target_type)
-            st.sidebar.success("동기화 완료!")
+            st.cache_data.clear()      # ✅ 이중 클리어
+            st.cache_resource.clear()  # ✅
+            st.sidebar.success("✅ 동기화 완료! 최신 데이터를 불러옵니다.")
             safe_rerun()
-        except Exception as e: st.sidebar.error(f"오류: {e}")
+        except Exception as e:
+            st.sidebar.error(f"오류: {e}")
 
 # --- 메인 화면 ---
 
 if selected_label == "📊 통합 대시보드":
     st.markdown("<h2 style='color:#333; margin-bottom: 30px;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
-    
+
     st.markdown("<h4 style='color:#00AEEF;'>💻 PC 자산 현황</h4>", unsafe_allow_html=True)
     pc_count = len(df_pc) if not df_pc.empty else 0
-    pc_val = pd.to_numeric(df_pc.get("금액", pd.Series()), errors='coerce').sum() if not df_pc.empty else 0
-    
+    pc_val   = pd.to_numeric(df_pc.get("금액", pd.Series()), errors='coerce').sum() if not df_pc.empty else 0
     c1, c2, c3 = st.columns(3)
     c1.metric("총 PC 관리 수량", f"{pc_count:,.0f} 대")
-    c2.metric("PC 취득가 총액", f"₩ {int(pc_val):,.0f}")
+    c2.metric("PC 취득가 총액",  f"₩ {int(pc_val):,.0f}")
     if not df_pc.empty and "분류" in df_pc.columns:
         desktop_cnt = len(df_pc[df_pc["분류"].astype(str).str.contains("데스크탑", na=False)])
         laptop_cnt  = len(df_pc[df_pc["분류"].astype(str).str.contains("노트북|맥북|UMPC", na=False)])
@@ -324,17 +333,13 @@ if selected_label == "📊 통합 대시보드":
 
     st.markdown("<h4 style='color:#00AEEF;'>📦 일반 비품 자산 현황</h4>", unsafe_allow_html=True)
     eq_count = pd.to_numeric(df_eq.get("개수", pd.Series()), errors='coerce').sum() if not df_eq.empty else 0
-    if not df_eq.empty and "개수" in df_eq.columns and "취득가" in df_eq.columns:
-        eq_val = (
-            pd.to_numeric(df_eq["개수"],   errors='coerce').fillna(0) *
-            pd.to_numeric(df_eq["취득가"], errors='coerce').fillna(0)
-        ).sum()
-    else:
-        eq_val = 0
-
+    eq_val   = (
+        pd.to_numeric(df_eq["개수"],   errors='coerce').fillna(0) *
+        pd.to_numeric(df_eq["취득가"], errors='coerce').fillna(0)
+    ).sum() if not df_eq.empty and "개수" in df_eq.columns and "취득가" in df_eq.columns else 0
     c4, c5, c6 = st.columns(3)
-    c4.metric("총 일반 비품 수량", f"{int(eq_count):,.0f} 개")
-    c5.metric("비품 취득가 총액", f"₩ {int(eq_val):,.0f}")
+    c4.metric("총 일반 비품 수량",    f"{int(eq_count):,.0f} 개")
+    c5.metric("비품 취득가 총액",     f"₩ {int(eq_val):,.0f}")
     eq_tab_cnt = len(df_eq["소분류"].unique()) if not df_eq.empty and "소분류" in df_eq.columns else 0
     c6.metric("관리 중인 비품 탭 수", f"{eq_tab_cnt} 개")
 
@@ -354,7 +359,7 @@ elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
             expected_cols = get_expected_cols(target_sub_manual, dtype)
             with st.form("data_add_form", clear_on_submit=True):
                 input_vals = {}
-                form_cols = st.columns(3)
+                form_cols  = st.columns(3)
                 for idx, col_name in enumerate(expected_cols[2:]):
                     col_ui = form_cols[idx % 3]
                     if col_name in ["개수", "취득가", "금액"]:
@@ -364,9 +369,8 @@ elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
                 if st.form_submit_button("➕ 1건 등록하기"):
                     new_row = {"대분류": target_main_manual, "소분류": target_sub_manual}
                     new_row.update(input_vals)
-                    df_target = st.session_state[f"df_{dtype}"]
-                    st.session_state[f"df_{dtype}"] = pd.concat([df_target, pd.DataFrame([new_row])], ignore_index=True)
-                    save_data(st.session_state[f"df_{dtype}"], dtype)
+                    df_target = load_data(dtype)
+                    save_data(pd.concat([df_target, pd.DataFrame([new_row])], ignore_index=True), dtype)
                     st.success("등록 완료!")
                     safe_rerun()
         with tab_clear:
@@ -374,14 +378,13 @@ elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
             del_main = st.selectbox("지울 대분류 선택", list(menus.keys()), key="del_m")
             del_sub  = st.selectbox("지울 소분류 선택", menus[del_main]["subs"] if menus[del_main]["subs"] else ["(소분류 없음)"], key="del_s")
             if st.button("🚨 해당 탭 데이터 전체 삭제", type="primary"):
-                del_type = menus[del_main]["type"]
-                df_existing = st.session_state[f"df_{del_type}"].copy()
+                del_type    = menus[del_main]["type"]
+                df_existing = load_data(del_type)
                 if not df_existing.empty and "대분류" in df_existing.columns:
                     df_existing = df_existing[
                         ~((df_existing['대분류'].apply(normalize_str) == normalize_str(del_main)) &
                           (df_existing['소분류'].apply(normalize_str) == normalize_str(del_sub)))
                     ]
-                    st.session_state[f"df_{del_type}"] = df_existing
                     save_data(df_existing, del_type)
                     st.success(f"[{del_sub}] 탭의 모든 데이터가 초기화되었습니다.")
                     safe_rerun()
@@ -412,7 +415,7 @@ elif selected_label == "⚙️ 환경설정 (탭 관리)":
             st.subheader("➕ 소분류(상단 탭) 추가")
             with st.form("add_sub_form"):
                 target_main_conf = st.selectbox("상위 분류 선택", list(menus.keys()))
-                new_sub_name = st.text_input("새 소분류 명칭")
+                new_sub_name     = st.text_input("새 소분류 명칭")
                 if st.form_submit_button("추가하기"):
                     if new_sub_name and new_sub_name not in menus[target_main_conf]["subs"]:
                         menus[target_main_conf]["subs"].append(new_sub_name)
@@ -428,11 +431,10 @@ elif selected_label == "⚙️ 환경설정 (탭 관리)":
                         save_config(menus)
                         safe_rerun()
 
-# 🟢 개별 탭 조회 및 에디터 화면
 else:
     selected_menu = menu_mapping[selected_label]
-    cat_type = menus[selected_menu].get("type", "비품")
-    sub_tabs = menus[selected_menu]["subs"]
+    cat_type      = menus[selected_menu].get("type", "비품")
+    sub_tabs      = menus[selected_menu]["subs"]
 
     st.markdown(f"<h2 style='color:#333;'>📂 {selected_menu}</h2>", unsafe_allow_html=True)
 
@@ -444,28 +446,23 @@ else:
             used_sw  = len(sw_data[sw_data["사용자"].astype(str).str.strip() != ""])
             avail_sw = total_sw - used_sw
             c1, c2, c3 = st.columns(3)
-            c1.metric("총 발급 라이선스",      f"{total_sw} EA")
-            c2.metric("할당 완료 (사용중)",     f"{used_sw} EA")
-            c3.metric("잔여 (미사용)",          f"{avail_sw} EA")
+            c1.metric("총 발급 라이선스",  f"{total_sw} EA")
+            c2.metric("할당 완료 (사용중)", f"{used_sw} EA")
+            c3.metric("잔여 (미사용)",      f"{avail_sw} EA")
             st.markdown("<br>", unsafe_allow_html=True)
         if not sw_data.empty and "소분류" in sw_data.columns:
             summary_data = []
             for sub in sw_data["소분류"].unique():
                 if not sub: continue
-                sub_df = sw_data[sw_data["소분류"] == sub]
+                sub_df       = sw_data[sw_data["소분류"] == sub]
                 total_count  = len(sub_df)
                 in_use_count = len(sub_df[sub_df["사용자"].astype(str).str.strip() != ""]) if "사용자" in sub_df.columns else 0
                 if "사용기한" in sub_df.columns:
-                    valid_dates   = sub_df[sub_df["사용기한"].astype(str).str.strip() != ""]["사용기한"]
+                    valid_dates    = sub_df[sub_df["사용기한"].astype(str).str.strip() != ""]["사용기한"]
                     nearest_expiry = valid_dates.min() if not valid_dates.empty else "-"
                 else:
                     nearest_expiry = "-"
-                summary_data.append({
-                    "품목 (소분류)": sub,
-                    "총 라이선스 개수": f"{total_count} EA",
-                    "현재 사용중": f"{in_use_count} EA",
-                    "가장 빠른 만료일": nearest_expiry
-                })
+                summary_data.append({"품목 (소분류)": sub, "총 라이선스 개수": f"{total_count} EA", "현재 사용중": f"{in_use_count} EA", "가장 빠른 만료일": nearest_expiry})
             if summary_data:
                 st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
             else:
@@ -485,7 +482,7 @@ else:
         for i, current_sub in enumerate(sub_tabs):
             with tabs[i]:
 
-                # ✅ [신규] 비품 타입일 때 품목별 대시보드 렌더링
+                # ✅ 비품 타입 → 대시보드 렌더링
                 if cat_type == "비품":
                     if not df_master.empty and "대분류" in df_master.columns and "소분류" in df_master.columns:
                         dash_df = df_master[
@@ -498,7 +495,6 @@ else:
 
                 # 기존 에디터 (유지)
                 st.caption("✨ 아래 표를 더블 클릭하여 내용을 즉시 수정하거나, 맨 아래 빈 칸을 눌러 행을 추가하세요.")
-
                 expected_cols = get_expected_cols(current_sub, cat_type)
                 display_cols  = [c for c in expected_cols if c not in ["대분류", "소분류"]]
 
