@@ -115,15 +115,13 @@ def get_expected_cols(sub_tab, dtype):
         return COLS["대여비품"]
     return COLS.get(dtype, COLS["비품"])
 
-@st.cache_data(ttl=600)
-def _load_data_cached(sheet_name):
-    return conn.read(worksheet=sheet_name, ttl=0).fillna("")
-
+# 💡 [에러 해결] 불필요한 @st.cache_data 래퍼 제거 및 자체 캐싱 활용
 def load_data(dtype):
     if HAS_CONN:
         try:
             sheet_name = f"data_{'equipment' if dtype=='비품' else ('software' if dtype=='SW' else 'pc')}"
-            return _load_data_cached(sheet_name)
+            # conn.read 자체에 이미 캐싱(ttl) 기능이 완벽히 내장되어 있어 이것만 사용해도 충분합니다.
+            return conn.read(worksheet=sheet_name, ttl=600).fillna("")
         except: pass
     return pd.DataFrame(columns=COLS[dtype] if dtype != "비품" else COLS["비품"] + COLS["대여비품"])
 
@@ -131,7 +129,7 @@ def save_data(df, dtype):
     if HAS_CONN:
         sheet_name = f"data_{'equipment' if dtype=='비품' else ('software' if dtype=='SW' else 'pc')}"
         conn.update(worksheet=sheet_name, data=df.fillna("").astype(str))
-        st.cache_data.clear()
+        st.cache_data.clear() # 💡 저장 시 전체 캐시를 깔끔하게 비워 실시간 동기화 보장
 
 def load_config():
     if HAS_CONN:
