@@ -8,42 +8,39 @@ from streamlit_gsheets import GSheetsConnection
 st.set_page_config(page_title="Haegin Asset ERP", layout="wide", page_icon="🏢")
 
 # ==============================================================================
-# 🎨 완벽한 더존 ERP 스타일 커스텀 CSS (시안 디자인 100% 반영)
+# 🎨 UI/UX 커스텀 CSS (밝은 테마 + 하늘색 HAEGIN & 탭 강조)
 # ==============================================================================
 st.markdown("""
 <style>
-    /* 전체 배경 회색톤으로 깔끔하게 */
-    .stApp { background-color: #f0f2f6; }
+    /* 전체 배경: 깔끔한 연한 회색/흰색 톤 */
+    .stApp { background-color: #F8FAFC; }
     
-    /* 좌측 사이드바: 딥 네이비(블랙) 컬러 적용 */
+    /* 사이드바: 흰색 배경 */
     [data-testid="stSidebar"] {
-        background-color: #0b1120 !important;
-        border-right: 1px solid #1e293b;
-    }
-    [data-testid="stSidebar"] * {
-        color: #f8fafc !important;
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E2E8F0;
     }
     
-    /* 사이드바 라디오 버튼을 둥근 필(Pill) 형태의 메뉴로 디자인 */
+    /* 사이드바 라디오 버튼(대분류 탭) 디자인 */
     div[role="radiogroup"] > label {
-        background-color: #1e293b !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
         padding: 12px 20px !important;
-        border-radius: 10px !important;
+        border-radius: 8px !important;
         margin-bottom: 8px !important;
-        border-left: 4px solid transparent !important;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
     div[role="radiogroup"] > label:hover {
-        background-color: #334155 !important;
+        background-color: #F1F5F9 !important;
     }
-    /* 선택된 메뉴 디자인 (스카이블루 강조) */
+    /* 선택된 대분류 탭 디자인 (하늘색 강조) */
     div[role="radiogroup"] > label[data-baseweb="radio"][aria-checked="true"] {
-        background-color: #0ea5e9 !important;
-        border-left: 4px solid #38bdf8 !important;
+        background-color: #00AEEF !important; /* 하늘색 */
+        border-color: #00AEEF !important;
     }
     div[role="radiogroup"] > label[data-baseweb="radio"][aria-checked="true"] * {
-        color: white !important;
-        font-weight: 700 !important;
+        color: #FFFFFF !important; /* 선택 시 글자는 흰색 */
+        font-weight: bold !important;
     }
     /* 기본 라디오 동그라미 숨김 */
     div[role="radiogroup"] > label > div:first-child { display: none !important; }
@@ -51,21 +48,12 @@ st.markdown("""
     /* 메인 화면 여백 최소화 */
     .block-container { padding-top: 2rem !important; max-width: 95% !important; }
     
-    /* 대시보드 카드 스타일 */
-    .dashboard-card {
-        background: white;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border-top: 5px solid #0ea5e9;
-        margin-bottom: 20px;
-    }
-    /* 저장 버튼 스카이블루 강조 */
+    /* 일반 버튼 색상 (하늘색) */
     .stButton > button {
-        background-color: #0ea5e9 !important;
+        background-color: #00AEEF !important;
         color: white !important;
         border: none !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         font-weight: bold !important;
     }
 </style>
@@ -88,12 +76,12 @@ COLS = {
 }
 
 DEFAULT_CONFIG = {
-    "1. 해긴 비품 리스트": {"type": "비품", "icon": "📦", "subs": ["사무실&회의실", "휴게실 및 기타", "탕비실&카페테리아", "계절용품", "하이퍼라이즈 대여 비품"]},
-    "2. PC 관리": {"type": "PC", "icon": "💻", "subs": ["전체 사용 PC 목록", "잔여재고", "모니터"]},
-    "3. SW목록": {"type": "SW", "icon": "💿", "subs": ["백신", "Office", "Adobe", "3Ds Max", "VS 2022 pro", "Jetbrains&GitHub", "클로드", "업무용 AI 툴", "기타(구독형)", "기타(영구)", "윈도우", "한글&더존"]},
-    "4. 보안모듈": {"type": "SW", "icon": "🛡️", "subs": ["보안모듈 통합"]},
-    "5. 에셋&플러그인": {"type": "SW", "icon": "🧩", "subs": ["에셋&플러그인 통합"]},
-    "6. SW 구매내역": {"type": "SW", "icon": "🛒", "subs": ["구매내역 통합"]}
+    "1. 해긴 비품 리스트": {"type": "비품", "subs": ["사무실&회의실", "휴게실 및 기타", "탕비실&카페테리아", "계절용품", "하이퍼라이즈 대여 비품"]},
+    "2. PC 관리": {"type": "PC", "subs": ["전체 사용 PC 목록", "잔여재고", "모니터"]},
+    "3. SW목록": {"type": "SW", "subs": ["백신", "Office", "Adobe", "3Ds Max", "VS 2022 pro", "Jetbrains&GitHub", "클로드", "업무용 AI 툴", "기타(구독형)", "기타(영구)", "윈도우", "한글&더존"]},
+    "4. 보안모듈": {"type": "SW", "subs": ["보안모듈 통합"]},
+    "5. 에셋&플러그인": {"type": "SW", "subs": ["에셋&플러그인 통합"]},
+    "6. SW 구매내역": {"type": "SW", "subs": ["구매내역 통합"]}
 }
 
 # --- 3. 핵심 함수 (에러 방지 완벽 처리) ---
@@ -109,7 +97,7 @@ def normalize_str(s):
 def get_expected_cols(sub_tab, dtype):
     if normalize_str(sub_tab) == normalize_str("하이퍼라이즈 대여 비품"):
         return COLS["대여비품"]
-    return COLS[dtype]
+    return COLS.get(dtype, COLS["비품"])
 
 # [캐싱] 데이터 불러오기 (속도 혁신)
 @st.cache_data(ttl=600)
@@ -134,15 +122,18 @@ def load_config():
     if HAS_CONN:
         try:
             df = conn.read(worksheet="menu_config", ttl=600).fillna("")
-            if df.empty: return DEFAULT_CONFIG
+            if df.empty or "대분류" not in df.columns: return DEFAULT_CONFIG
+            
             cfg = {}
             for _, row in df.iterrows():
-                m, t, s = str(row.get("대분류", "")).strip(), str(row.get("양식타입", "")).strip(), str(row.get("소분류", "")).strip()
+                m = str(row.get("대분류", "")).strip()
+                t = str(row.get("양식타입", "")).strip()
+                s = str(row.get("소분류", "")).strip()
+                
                 if not m: continue
                 if m not in cfg:
-                    icon = DEFAULT_CONFIG.get(m, {}).get("icon", "📁")
-                    t = t if t else DEFAULT_CONFIG.get(m, {}).get("type", "비품") # KeyError 원인 완벽 차단
-                    cfg[m] = {"type": t, "icon": icon, "subs": []}
+                    # 빈값이거나 에러가 나면 무조건 비품으로 초기화 (KeyError 원천 차단)
+                    cfg[m] = {"type": t if t in ["비품", "SW", "PC"] else "비품", "subs": []}
                 if s and s != "(소분류 없음)" and s not in cfg[m]["subs"]:
                     cfg[m]["subs"].append(s)
             
@@ -150,11 +141,9 @@ def load_config():
             if "1. 해긴 비품 리스트" in cfg and "하이퍼라이즈 대여 비품" not in cfg["1. 해긴 비품 리스트"]["subs"]:
                 cfg["1. 해긴 비품 리스트"]["subs"].append("하이퍼라이즈 대여 비품")
             
-            # Type 무조건 보장
-            for k, v in cfg.items():
-                if "type" not in v or not v["type"]: v["type"] = DEFAULT_CONFIG.get(k, {}).get("type", "비품")
             return cfg
-        except: return DEFAULT_CONFIG
+        except Exception as e:
+            return DEFAULT_CONFIG
     return DEFAULT_CONFIG
 
 def save_config(config):
@@ -175,18 +164,19 @@ if HAS_CONN:
     df_pc = load_data("PC")
 else: st.stop()
 
-# --- 5. 사이드바 UI (배지 및 아이콘 적용) ---
+# --- 5. 사이드바 UI ---
+# 로고 (하늘색 강조)
 st.sidebar.markdown("""
-<div style='text-align: center; margin-bottom: 30px;'>
-    <h1 style='color: #0ea5e9; margin: 0; font-size: 32px;'>HAEGIN</h1>
-    <p style='color: #94a3b8; font-size: 14px; margin: 0; letter-spacing: 1px;'>ASSET MANAGEMENT</p>
+<div style='text-align: center; margin-bottom: 20px;'>
+    <h1 style='color: #00AEEF; margin: 0; font-size: 36px; font-weight: 900;'>HAEGIN</h1>
+    <p style='color: #64748B; font-size: 14px; margin: 0; font-weight: 600;'>ASSET MANAGEMENT</p>
 </div>
 """, unsafe_allow_html=True)
 
-nav_options = ["📊 ERP 통합 대시보드"]
+nav_options = ["📊 통합 대시보드"]
 menu_mapping = {}
 
-# 💡 실시간 데이터 건수 배지(Badge) 계산 및 메뉴에 병합
+# 실시간 데이터 건수 배지 계산
 for k, v in menus.items():
     count = 0
     if v["type"] == "비품" and not df_eq.empty and "대분류" in df_eq.columns:
@@ -196,22 +186,25 @@ for k, v in menus.items():
     elif v["type"] == "PC" and not df_pc.empty and "대분류" in df_pc.columns:
         count = len(df_pc[df_pc["대분류"] == k])
         
-    label = f"{v.get('icon', '📁')} {k} [{count}]"
+    label = f"📁 {k} [{count}]"
     nav_options.append(label)
     menu_mapping[label] = k
 
-nav_options.append("⚙️ 기초 정보 관리")
+# 요청하신 수동입력/환경설정 탭 복구
+nav_options.append("🛠️ 데이터 관리 (수동입력/삭제)")
+nav_options.append("⚙️ 환경설정 (탭 관리)")
 
 selected_label = st.sidebar.radio("Navigation", nav_options, label_visibility="collapsed")
 
 st.sidebar.markdown("---")
+
 # 엑셀 동기화 메뉴
-if selected_label not in ["📊 ERP 통합 대시보드", "⚙️ 기초 정보 관리"]:
+if selected_label not in ["📊 통합 대시보드", "🛠️ 데이터 관리 (수동입력/삭제)", "⚙️ 환경설정 (탭 관리)"]:
     selected_menu = menu_mapping[selected_label]
-    target_type = menus[selected_menu]["type"]
+    target_type = menus[selected_menu].get("type", "비품")
     sub_list = menus[selected_menu]["subs"] if menus[selected_menu]["subs"] else ["(소분류 없음)"]
     
-    st.sidebar.markdown("<h4 style='color:#0ea5e9;'>📁 데이터 일괄 동기화</h4>", unsafe_allow_html=True)
+    st.sidebar.markdown("<h4 style='color:#00AEEF;'>📁 데이터 일괄 동기화</h4>", unsafe_allow_html=True)
     target_sub = st.sidebar.selectbox("🎯 대상 탭 선택", sub_list)
     
     if st.sidebar.button("📝 빈 양식 엑셀 다운로드"):
@@ -219,10 +212,10 @@ if selected_label not in ["📊 ERP 통합 대시보드", "⚙️ 기초 정보 
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             pd.DataFrame(columns=[c for c in expected_cols if c not in ["대분류", "소분류"]]).to_excel(writer, index=False, sheet_name='입력양식')
-        st.sidebar.download_button("📥 저장하기", data=buffer.getvalue(), file_name=f"{target_sub}_양식.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.sidebar.download_button("📥 내 PC에 저장하기", data=buffer.getvalue(), file_name=f"{target_sub}_양식.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
     uploaded_file = st.sidebar.file_uploader(f"🔄 [{target_sub}] 업로드", type=["xlsx", "csv"])
-    if uploaded_file and st.sidebar.button("📥 구글 시트에 덮어쓰기", use_container_width=True):
+    if uploaded_file and st.sidebar.button("📥 구글 시트에 적용", use_container_width=True):
         try:
             df_up = pd.read_excel(uploaded_file) if uploaded_file.name.endswith(".xlsx") else pd.read_csv(uploaded_file, encoding="utf-8-sig")
             df_up["대분류"], df_up["소분류"] = selected_menu, target_sub
@@ -246,35 +239,86 @@ if selected_label not in ["📊 ERP 통합 대시보드", "⚙️ 기초 정보 
 # --- 6. 메인 화면 로직 ---
 
 # 🟢 통합 대시보드
-if selected_label == "📊 ERP 통합 대시보드":
-    st.markdown("<h2 style='color:#0f172a;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
+if selected_label == "📊 통합 대시보드":
+    st.markdown("<h2 style='color:#333;'>📈 전사 자산/비품 통합 현황</h2>", unsafe_allow_html=True)
     
     eq_count = len(df_eq) if not df_eq.empty else 0
     pc_count = len(df_pc) if not df_pc.empty else 0
     sw_count = len(df_sw) if not df_sw.empty else 0
     
     c1, c2, c3 = st.columns(3)
-    c1.markdown(f"<div class='dashboard-card'><h3>📦 하드웨어/비품</h3><h1 style='color:#0ea5e9; font-size:48px;'>{int(eq_count + pc_count):,.0f}</h1></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div class='dashboard-card'><h3>💾 운용 소프트웨어</h3><h1 style='color:#0ea5e9; font-size:48px;'>{sw_count:,.0f}</h1></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='dashboard-card'><h3>🏢 부서 탭</h3><h1 style='color:#0ea5e9; font-size:48px;'>{len(menus)}</h1></div>", unsafe_allow_html=True)
+    c1.metric("📦 전체 하드웨어/비품", f"{int(eq_count + pc_count):,.0f} 개")
+    c2.metric("💾 운용 소프트웨어", f"{sw_count:,.0f} 개")
+    c3.metric("🏢 관리 탭 수", f"{len(menus)} 개")
     
-    st.info("💡 **실시간 연동 가동 중:** 다른 담당자가 정보를 수정하면 즉시 구글 시트에 반영되고 전사 화면이 동기화됩니다.")
+    st.info("💡 왼쪽 메뉴에서 각 카테고리를 클릭하여 상세 리스트를 확인하고 표에서 직접 수정하세요.")
 
-# 🟢 환경설정
-elif selected_label == "⚙️ 기초 정보 설정":
-    st.markdown("<h2 style='color:#0f172a;'>⚙️ 시스템 설정 및 카테고리 관리</h2>", unsafe_allow_html=True)
+# 🟢 수동 데이터 관리 (추가 및 특정 탭 초기화) - 복구 완료
+elif selected_label == "🛠️ 데이터 관리 (수동입력/삭제)":
+    st.title("🛠️ 데이터 수동 등록 및 초기화")
+    if not menus:
+        st.warning("환경설정에서 대분류를 먼저 생성해주세요.")
+    else:
+        tab_manual, tab_clear = st.tabs(["➕ 건별 수동 등록", "🗑️ 특정 탭 데이터 비우기"])
+        
+        with tab_manual:
+            target_main_manual = st.selectbox("등록할 대분류", list(menus.keys()))
+            target_sub_manual = st.selectbox("등록할 소분류", menus[target_main_manual]["subs"] if menus[target_main_manual]["subs"] else ["(소분류 없음)"])
+            dtype = menus[target_main_manual]["type"]
+            expected_cols = get_expected_cols(target_sub_manual, dtype)
+            
+            with st.form("data_add_form", clear_on_submit=True):
+                input_vals = {}
+                form_cols = st.columns(3)
+                for idx, col_name in enumerate(expected_cols[2:]):
+                    col_ui = form_cols[idx % 3]
+                    if col_name in ["개수", "취득가", "금액"]:
+                        input_vals[col_name] = col_ui.number_input(col_name, value=0, step=1000)
+                    else:
+                        input_vals[col_name] = col_ui.text_input(col_name)
+                if st.form_submit_button("➕ 1건 등록하기"):
+                    new_row = {"대분류": target_main_manual, "소분류": target_sub_manual}
+                    new_row.update(input_vals)
+                    df_target = st.session_state[f"df_{dtype}"]
+                    st.session_state[f"df_{dtype}"] = pd.concat([df_target, pd.DataFrame([new_row])], ignore_index=True)
+                    save_data(st.session_state[f"df_{dtype}"], dtype)
+                    st.success("등록 완료!")
+                    safe_rerun()
+                    
+        with tab_clear:
+            st.warning("잘못 업로드된 특정 탭의 데이터를 통째로 지울 수 있습니다.")
+            del_main = st.selectbox("지울 대분류 선택", list(menus.keys()), key="del_m")
+            del_sub = st.selectbox("지울 소분류 선택", menus[del_main]["subs"] if menus[del_main]["subs"] else ["(소분류 없음)"], key="del_s")
+            
+            if st.button("🚨 해당 탭 데이터 전체 삭제", type="primary"):
+                del_type = menus[del_main]["type"]
+                df_existing = st.session_state[f"df_{del_type}"].copy()
+                if not df_existing.empty and "대분류" in df_existing.columns:
+                    df_existing = df_existing[
+                        ~((df_existing['대분류'].apply(normalize_str) == normalize_str(del_main)) & 
+                          (df_existing['소분류'].apply(normalize_str) == normalize_str(del_sub)))
+                    ]
+                    st.session_state[f"df_{del_type}"] = df_existing
+                    save_data(df_existing, del_type)
+                    st.success(f"[{del_sub}] 탭의 모든 데이터가 초기화되었습니다.")
+                    safe_rerun()
+
+# 🟢 환경설정 (탭 관리) - 복구 완료
+elif selected_label == "⚙️ 환경설정 (탭 관리)":
+    st.title("⚙️ 시스템 카테고리(탭) 관리")
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("대분류 추가")
+        st.subheader("➕ 대분류 추가")
         with st.form("add_main_form"):
-            new_main_name = st.text_input("새 대분류 명칭")
-            new_main_type = st.selectbox("양식", ["비품", "SW", "PC"])
-            if st.form_submit_button("등록") and new_main_name:
-                if new_main_name not in menus:
-                    menus[new_main_name] = {"type": new_main_type, "icon": "📁", "subs": []}
+            new_main_name = st.text_input("새 대분류 이름")
+            new_main_type = st.selectbox("적용 양식", ["비품", "SW", "PC"])
+            if st.form_submit_button("추가하기"):
+                if new_main_name and new_main_name not in menus:
+                    menus[new_main_name] = {"type": new_main_type, "subs": []}
                     save_config(menus)
                     safe_rerun()
-        st.subheader("대분류 삭제")
+                else: st.error("오류: 이름 중복 또는 공란")
+        st.subheader("❌ 대분류 삭제")
         with st.form("del_main_form"):
             del_main_name = st.selectbox("삭제 대상", list(menus.keys()))
             if st.form_submit_button("선택 삭제") and del_main_name in menus:
@@ -283,16 +327,16 @@ elif selected_label == "⚙️ 기초 정보 설정":
                 safe_rerun()
     with c2:
         if menus:
-            st.subheader("소분류 추가")
+            st.subheader("➕ 소분류(상단 탭) 추가")
             with st.form("add_sub_form"):
                 target_main_conf = st.selectbox("상위 분류 선택", list(menus.keys()))
                 new_sub_name = st.text_input("새 소분류 명칭")
-                if st.form_submit_button("등록") and new_sub_name:
-                    if new_sub_name not in menus[target_main_conf]["subs"]:
+                if st.form_submit_button("추가하기"):
+                    if new_sub_name and new_sub_name not in menus[target_main_conf]["subs"]:
                         menus[target_main_conf]["subs"].append(new_sub_name)
                         save_config(menus)
                         safe_rerun()
-            st.subheader("소분류 삭제")
+            st.subheader("❌ 소분류(상단 탭) 삭제")
             with st.form("del_sub_form"):
                 del_target_main = st.selectbox("상위 분류", list(menus.keys()), key="dsm")
                 if menus[del_target_main]["subs"]:
@@ -305,35 +349,38 @@ elif selected_label == "⚙️ 기초 정보 설정":
 # 🟢 개별 탭 조회 및 에디터 화면
 else:
     selected_menu = menu_mapping[selected_label]
-    cat_type = menus[selected_menu]["type"]
+    cat_type = menus[selected_menu].get("type", "비품")
     sub_tabs = menus[selected_menu]["subs"]
     
-    st.markdown(f"<h2 style='color:#0f172a;'>📂 {selected_menu}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color:#333;'>📂 {selected_menu}</h2>", unsafe_allow_html=True)
     
-    # 💡 [요청사항] SW목록 접속 시 화려한 라이선스 대시보드 노출
+    # 💡 [요청사항 완벽 반영] SW목록 전용 요약 대시보드
     if cat_type == "SW" and normalize_str(selected_menu) == normalize_str("3. SW목록"):
-        st.markdown("### 💿 Software License Intelligence (실시간 사용 현황)")
+        st.markdown("### 💿 항목별 라이선스 현황 대시보드")
         sw_data = df_sw[df_sw["대분류"] == selected_menu] if not df_sw.empty and "대분류" in df_sw.columns else pd.DataFrame()
         
         if not sw_data.empty:
-            summary = sw_data.groupby("소분류").size().reset_index(name="사용중")
-            html_bars = "<div style='display: flex; flex-direction: column; gap: 15px;'>"
-            for _, row in summary.iterrows():
-                sub_name = row["소분류"]
-                used = row["사용중"]
-                total = used + 2 # 임시 총량 (사용중 + 여유분 2개)
-                pct = min(int((used / total) * 100), 100)
-                html_bars += f"""
-                <div style='display: flex; align-items: center; gap: 20px;'>
-                    <div style='width: 180px; font-weight: bold; color: #334155;'>{sub_name}</div>
-                    <div style='flex-grow: 1; background: #e2e8f0; height: 25px; border-radius: 6px; overflow: hidden;'>
-                        <div style='width: {pct}%; height: 100%; background: linear-gradient(90deg, #0ea5e9, #2563eb);'></div>
-                    </div>
-                    <div style='width: 100px; text-align: right; font-weight: bold; color: #0ea5e9;'>{used} / {total} EA</div>
-                </div>
-                """
-            html_bars += "</div>"
-            st.markdown(f"<div class='dashboard-card'>{html_bars}</div>", unsafe_allow_html=True)
+            summary_data = []
+            for sub in sw_data["소분류"].unique():
+                sub_df = sw_data[sw_data["소분류"] == sub]
+                total_count = len(sub_df)
+                
+                # 사용자가 빈칸이 아닌 경우 '사용중'으로 카운트
+                in_use_count = len(sub_df[sub_df["사용자"].astype(str).str.strip() != ""])
+                
+                # 사용기한이 기재된 데이터 중 가장 빨리 만료되는 날짜 찾기
+                valid_dates = sub_df[sub_df["사용기한"].astype(str).str.strip() != ""]["사용기한"]
+                nearest_expiry = valid_dates.min() if not valid_dates.empty else "-"
+                
+                summary_data.append({
+                    "품목 (소분류)": sub,
+                    "총 라이선스 개수": f"{total_count} EA",
+                    "현재 사용중": f"{in_use_count} EA",
+                    "가장 빠른 사용기한 (만료일)": nearest_expiry
+                })
+            
+            # 현황판 표로 깔끔하게 노출
+            st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
         else:
             st.info("등록된 라이선스 내역이 없습니다.")
     
@@ -343,7 +390,7 @@ else:
     df_master = df_eq if cat_type == "비품" else (df_sw if cat_type == "SW" else df_pc)
     
     if not sub_tabs:
-        st.warning("하위 탭이 없습니다. 환경설정에서 추가해주세요.")
+        st.warning("상단 탭(소분류)이 없습니다. 환경설정에서 추가해주세요.")
     else:
         tabs = st.tabs(sub_tabs)
         for i, current_sub in enumerate(sub_tabs):
